@@ -1,0 +1,886 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>CSV Histogram v6</title>
+
+        <!-- Google Fonts -->
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:wght@600;700&display=swap"
+            rel="stylesheet"
+        />
+
+        <!-- Chart.js -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+        <style>
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            @import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:wght@600;700&display=swap");
+
+            :root {
+                --bg: #0f1117;
+                --surface: #1a1d27;
+                --border: #2e3347;
+                --accent: #7dd3a8;
+                --accent-dim: rgba(125, 211, 168, 0.18);
+                --accent2: #5ba3e6;
+                --text: #e2e4eb;
+                --text-dim: #7a7f95;
+                --danger: #e06c6c;
+            }
+
+            html,
+            body {
+                height: 100%;
+                background: var(--bg);
+                color: var(--text);
+                font-family: "DM Mono", monospace;
+                font-size: 14px;
+                line-height: 1.5;
+                overflow-x: hidden;
+            }
+
+            .shell {
+                min-height: 100vh;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 48px 24px 64px;
+                gap: 32px;
+            }
+
+            /* Header */
+            .header {
+                text-align: center;
+            }
+            .header h1 {
+                font-family: "Playfair Display", serif;
+                font-size: clamp(1.8rem, 5vw, 2.6rem);
+                font-weight: 700;
+                letter-spacing: -0.02em;
+            }
+            .header h1 span {
+                color: var(--accent);
+            }
+            .header p {
+                color: var(--text-dim);
+                margin-top: 6px;
+                font-size: 13px;
+            }
+
+            /* Drop Zone */
+            .drop-zone {
+                width: 100%;
+                max-width: 560px;
+                border: 2px dashed var(--border);
+                border-radius: 18px;
+                background: var(--surface);
+                padding: 52px 24px;
+                text-align: center;
+                cursor: pointer;
+                transition:
+                    border-color 0.25s,
+                    background 0.25s,
+                    transform 0.15s;
+                position: relative;
+            }
+            .drop-zone:hover,
+            .drop-zone.dragover {
+                border-color: var(--accent);
+                background: var(--accent-dim);
+                transform: scale(1.015);
+            }
+            .drop-zone .icon {
+                font-size: 42px;
+                margin-bottom: 12px;
+                pointer-events: none;
+            }
+            .drop-zone .label {
+                font-weight: 500;
+                font-size: 15px;
+                pointer-events: none;
+            }
+            .drop-zone .sub {
+                color: var(--text-dim);
+                font-size: 12px;
+                margin-top: 4px;
+                pointer-events: none;
+            }
+            .drop-zone input[type="file"] {
+                position: absolute;
+                inset: 0;
+                opacity: 0;
+                width: 100%;
+                height: 100%;
+                cursor: pointer;
+            }
+
+            /* Status */
+            .status {
+                max-width: 560px;
+                width: 100%;
+                min-height: 36px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                padding: 0 16px;
+                font-size: 13px;
+                color: var(--text-dim);
+                transition: border-color 0.25s;
+            }
+            .status.ok {
+                border-color: var(--accent);
+                color: var(--accent);
+            }
+            .status.err {
+                border-color: var(--danger);
+                color: var(--danger);
+            }
+            .status .dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: currentColor;
+                flex-shrink: 0;
+            }
+
+            /* Bin mode toggle */
+            .bin-mode-wrap {
+                max-width: 780px;
+                width: 100%;
+                display: none;
+            }
+            .bin-mode-wrap.visible {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            .bin-mode-wrap .section-label {
+                color: var(--text-dim);
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+            }
+            .toggle-switch {
+                position: relative;
+                width: 50px;
+                height: 26px;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 13px;
+                cursor: pointer;
+                transition:
+                    background 0.25s,
+                    border-color 0.25s;
+            }
+            .toggle-switch:hover {
+                border-color: var(--accent2);
+            }
+            .toggle-switch.on {
+                background: var(--accent-dim);
+                border-color: var(--accent);
+            }
+            .toggle-switch .slider {
+                position: absolute;
+                top: 2px;
+                left: 2px;
+                width: 20px;
+                height: 20px;
+                border-radius: 50%;
+                background: var(--text-dim);
+                transition:
+                    transform 0.25s,
+                    background 0.25s;
+            }
+            .toggle-switch.on .slider {
+                transform: translateX(24px);
+                background: var(--accent);
+            }
+            .bin-mode-wrap .label-text {
+                color: var(--text-dim);
+                font-size: 13px;
+            }
+            .bin-mode-wrap .label-text.active {
+                color: var(--text);
+            }
+
+            /* Column pills */
+            .col-selector-wrap {
+                max-width: 780px;
+                width: 100%;
+                display: none;
+            }
+            .col-selector-wrap.visible {
+                display: block;
+            }
+            .col-selector-wrap .section-label {
+                color: var(--text-dim);
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                margin-bottom: 8px;
+            }
+            .col-pills {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .col-pill {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 6px 14px;
+                cursor: pointer;
+                font-family: inherit;
+                font-size: 13px;
+                color: var(--text-dim);
+                transition:
+                    border-color 0.2s,
+                    color 0.2s,
+                    background 0.2s;
+                user-select: none;
+            }
+            .col-pill:hover {
+                border-color: var(--accent2);
+                color: var(--text);
+            }
+            .col-pill.active {
+                border-color: var(--accent);
+                background: var(--accent-dim);
+                color: var(--accent);
+            }
+
+            /* Chart */
+            .chart-wrap {
+                max-width: 780px;
+                width: 100%;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 18px;
+                padding: 28px 24px 20px;
+                display: none;
+            }
+            .chart-wrap.visible {
+                display: block;
+            }
+            .chart-wrap canvas {
+                max-width: 100%;
+            }
+
+            /* Stats */
+            .stats-row {
+                max-width: 780px;
+                width: 100%;
+                display: none;
+                gap: 12px;
+            }
+            .stats-row.visible {
+                display: flex;
+                flex-wrap: wrap;
+            }
+            .stat-card {
+                flex: 1 1 120px;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                padding: 16px 18px;
+            }
+            .stat-card .stat-label {
+                color: var(--text-dim);
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+            }
+            .stat-card .stat-val {
+                color: var(--text);
+                font-size: 20px;
+                font-weight: 500;
+                margin-top: 2px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="shell">
+            <div class="header">
+                <h1>CSV <span>Histogram</span></h1>
+                <p>Drop a CSV file below to visualise its integer columns</p>
+            </div>
+
+            <div class="drop-zone" id="dropZone">
+                <div class="icon">📂</div>
+                <div class="label">Drag &amp; drop your CSV here</div>
+                <div class="sub">
+                    or click to browse · expects 13-line header
+                </div>
+                <input type="file" id="fileInput" accept=".csv" />
+            </div>
+
+            <div class="status" id="status">
+                <div class="dot"></div>
+                <span id="statusText">Waiting for a file …</span>
+            </div>
+
+            <div class="bin-mode-wrap" id="binModeWrap">
+                <div class="section-label">Binning mode</div>
+                <span class="label-text" id="labelAuto">Auto (30 bins)</span>
+                <div class="toggle-switch" id="binToggle">
+                    <div class="slider"></div>
+                </div>
+                <span class="label-text" id="labelFixed"
+                    >Fixed (0–100, 10 bins)</span
+                >
+            </div>
+
+            <div class="col-selector-wrap" id="colSelectorWrap">
+                <div class="section-label">Toggle columns</div>
+                <div class="col-pills" id="colPills"></div>
+            </div>
+
+            <div class="stats-row" id="statsRow">
+                <div class="stat-card">
+                    <div class="stat-label">Rows</div>
+                    <div class="stat-val" id="statRows">–</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Columns</div>
+                    <div class="stat-val" id="statCols">–</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Min</div>
+                    <div class="stat-val" id="statMin">–</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Max</div>
+                    <div class="stat-val" id="statMax">–</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Mean</div>
+                    <div class="stat-val" id="statMean">–</div>
+                </div>
+            </div>
+
+            <div class="chart-wrap" id="chartWrap">
+                <canvas id="histCanvas"></canvas>
+            </div>
+        </div>
+
+        <script>
+            (function () {
+                "use strict";
+
+                /* ── constants ─────────────────────────────────────────────── */
+                const HEADER_LINES = 12;
+                const N_BINS = 30;
+                const COLOURS = [
+                    "#7dd3a8",
+                    "#5ba3e6",
+                    "#e6a35b",
+                    "#c77de6",
+                    "#e6e05b",
+                    "#5be6d5",
+                    "#e65b7a",
+                    "#a3e65b",
+                    "#e65bb8",
+                    "#5b8be6",
+                    "#e6c35b",
+                    "#6be6b8",
+                ];
+
+                /* ── DOM ───────────────────────────────────────────────────── */
+                const dropZone = document.getElementById("dropZone");
+                const fileInput = document.getElementById("fileInput");
+                const statusEl = document.getElementById("status");
+                const statusText = document.getElementById("statusText");
+                const binModeWrap = document.getElementById("binModeWrap");
+                const binToggle = document.getElementById("binToggle");
+                const labelAuto = document.getElementById("labelAuto");
+                const labelFixed = document.getElementById("labelFixed");
+                const colWrap = document.getElementById("colSelectorWrap");
+                const colPills = document.getElementById("colPills");
+                const chartWrap = document.getElementById("chartWrap");
+                const statsRow = document.getElementById("statsRow");
+
+                /* ── state ─────────────────────────────────────────────────── */
+                let colNames = [];
+                let rows = [];
+                let weights = []; // weightings from column 11
+                let activeCols = [];
+                let chartInst = null;
+                let fixedBinMode = false; // false = auto (30 bins), true = fixed (0-100, 10 bins)
+
+                /* ── tiny helpers ──────────────────────────────────────────── */
+                function setStatus(msg, cls) {
+                    statusText.textContent = msg;
+                    statusEl.className = "status" + (cls ? " " + cls : "");
+                }
+                function hexRgb(hex) {
+                    return [
+                        parseInt(hex.slice(1, 3), 16),
+                        parseInt(hex.slice(3, 5), 16),
+                        parseInt(hex.slice(5, 7), 16),
+                    ];
+                }
+
+                /* ── CSV line parser (handles quoted fields with commas) ────── */
+                function parseCSVLine(line) {
+                    const result = [];
+                    let current = "";
+                    let inQuotes = false;
+
+                    for (let i = 0; i < line.length; i++) {
+                        const char = line[i];
+                        const nextChar = line[i + 1];
+
+                        if (char === '"') {
+                            if (inQuotes && nextChar === '"') {
+                                // Escaped quote ("") becomes a single quote
+                                current += '"';
+                                i++; // skip the next quote
+                            } else {
+                                // Toggle quote state
+                                inQuotes = !inQuotes;
+                            }
+                        } else if (char === "," && !inQuotes) {
+                            // End of field
+                            result.push(current.trim());
+                            current = "";
+                        } else {
+                            current += char;
+                        }
+                    }
+
+                    // Add the last field
+                    result.push(current.trim());
+
+                    return result;
+                }
+
+                /* ── CSV parser ────────────────────────────────────────────── */
+                /*
+                 *  • First HEADER_LINES (13) lines are skipped for data.
+                 *  • Column names come from row 10 (index 9), columns 5-10 (indices 4-9). // can be variable - code is adapted
+                 *  • Weights come from row 11 (index 10), columns 5-10 (indices 4-9), formatted as "XX%". // can be variable - code is adapted
+                 *  • In every data row, columns 5-n (indices 4-n) are the integer data values.
+                 *  • Column 2 (index 1) contains text in quotes that may have commas - handled by parseCSVLine.
+                 *  • A blank row or EOF ends the data.
+                 */
+                function parseCSV(raw) {
+                    const lines = raw.split(/\r?\n/);
+
+                    // Column names from row 10 (index 9), columns 5-10 (indices 4-9)
+                    let rawNames = [];
+                    if (lines.length > 9) {
+                        const row10 = parseCSVLine(lines[9]);
+                        //rawNames = row10.slice(4, 10);
+                        rawNames = row10.slice(4); // goes to end of line
+                    }
+                    //console.log(rawNames);
+                    let nAssessments = rawNames.length; // limit of number of assessments
+                    //console.log(nAssessments);
+                    // Weights from row 11 (index 10), columns 5-10 (indices 4-9), formatted as "XX%"
+                    let weights = [];
+                    if (lines.length > 10) {
+                        const row11 = parseCSVLine(lines[10]);
+                        weights = row11.slice(4, 10).map((s) => {
+                            // Remove % symbol and parse as number
+                            const cleaned = s.replace("%", "").trim();
+                            const w = parseFloat(cleaned);
+                            return isNaN(w) ? 1 : w;
+                        });
+                    }
+
+                    // Ensure we have exactly nAssessments weights (default to 1)
+                    while (weights.length < nAssessments) weights.push(1); // pad weights with dummy values if needed
+                    weights = weights.slice(0, nAssessments); // strip off any excess cells
+
+                    const dataLines = lines.slice(HEADER_LINES);
+                    const out = [];
+
+                    for (const line of dataLines) {
+                        // read lines of data
+                        if (line.trim() === "") break; // stop at empty line
+                        if (line.trim() === ",,,,,") break; // stop at end of IDs
+                        const tokens = parseCSVLine(line);
+
+                        // Data is columns 5-10 (indices 4-9) - exactly 6 columns
+                        //const dataTokens = tokens.slice(4, 10);
+                        //console.log(4 + nAssessments - 1);
+                        const dataTokens = tokens.slice(4, 4 + nAssessments); // read the data columns
+                        //console.log(dataTokens);
+                        const ints = dataTokens.map((t) => {
+                            // split data
+                            const n = parseInt(t, 10);
+                            return isNaN(n) ? 0 : n; // check for a valid number, 0 otherwise
+                        });
+
+                        // Pad to nAssessment columns if needed
+                        while (ints.length < nAssessments) ints.push(0);
+
+                        out.push(ints.slice(0, nAssessments));
+                    }
+
+                    // Build column names (exactly 6)
+                    const nCols = nAssessments;
+                    const names = [];
+                    for (let i = 0; i < nCols; i++)
+                        names.push(
+                            i < rawNames.length && rawNames[i]
+                                ? rawNames[i]
+                                : `Col ${i + 1}`,
+                        );
+                    console.log(out);
+                    return { colNames: names, rows: out, weights: weights };
+                }
+
+                /* ── histogram math ────────────────────────────────────────── */
+                function buildHistogram() {
+                    const idx = activeCols.reduce((a, on, i) => {
+                        if (on) a.push(i);
+                        return a;
+                    }, []);
+                    if (!idx.length || !rows.length) return null;
+
+                    let lo, hi, nBins;
+
+                    if (fixedBinMode) {
+                        // Fixed mode: 0–100, 10 bins
+                        lo = 0;
+                        hi = 100;
+                        nBins = 10;
+                    } else {
+                        // Auto mode: data-driven range, 30 bins
+                        lo = Infinity;
+                        hi = -Infinity;
+
+                        // Need to check all values including overall marks if that's active
+                        for (const row of rows) {
+                            for (const ci of idx) {
+                                if (ci === colNames.length) {
+                                    // This is the "Overall Mark" - compute it
+                                    const overallMark = computeOverallMark(row);
+                                    if (overallMark < lo) lo = overallMark;
+                                    if (overallMark > hi) hi = overallMark;
+                                } else if (ci < row.length) {
+                                    if (row[ci] < lo) lo = row[ci];
+                                    if (row[ci] > hi) hi = row[ci];
+                                }
+                            }
+                        }
+
+                        if (lo === hi) {
+                            lo--;
+                            hi++;
+                        }
+                        nBins = N_BINS;
+                    }
+
+                    const bw = (hi - lo) / nBins;
+                    const labels = [];
+                    for (let i = 0; i <= nBins; i++)
+                        labels.push((lo + i * bw).toFixed(1));
+
+                    const datasets = idx.map((ci) => {
+                        const counts = new Array(nBins).fill(0);
+
+                        // Handle "Overall Mark" specially
+                        if (ci === colNames.length) {
+                            for (const row of rows) {
+                                const val = computeOverallMark(row);
+                                if (fixedBinMode && (val < 0 || val > 100))
+                                    continue;
+
+                                let b = Math.floor((val - lo) / bw);
+                                if (b >= nBins) b = nBins - 1;
+                                if (b < 0) b = 0;
+                                counts[b]++;
+                            }
+                        } else {
+                            // Regular column
+                            for (const row of rows) {
+                                const val = row[ci];
+                                if (fixedBinMode && (val < 0 || val > 100))
+                                    continue;
+
+                                let b = Math.floor((val - lo) / bw);
+                                if (b >= nBins) b = nBins - 1;
+                                if (b < 0) b = 0;
+                                counts[b]++;
+                            }
+                        }
+
+                        const hex = COLOURS[ci % COLOURS.length];
+                        const [r, g, b2] = hexRgb(hex);
+                        return {
+                            label:
+                                ci === colNames.length
+                                    ? "Overall Mark"
+                                    : colNames[ci],
+                            data: counts,
+                            backgroundColor: `rgba(${r},${g},${b2},0.35)`,
+                            borderColor: hex,
+                            borderWidth: 2,
+                        };
+                    });
+
+                    return { labels, datasets };
+                }
+
+                /* ── compute weighted overall mark for a single row ─────────── */
+                function computeOverallMark(row) {
+                    let totalWeighted = 0;
+                    let totalWeight = 0;
+
+                    for (let i = 0; i < row.length && i < weights.length; i++) {
+                        totalWeighted += row[i] * weights[i];
+                        totalWeight += weights[i];
+                    }
+
+                    return totalWeight > 0 ? totalWeighted / totalWeight : 0;
+                }
+
+                /* ── chart render ──────────────────────────────────────────── */
+                function renderChart() {
+                    const p = buildHistogram();
+                    if (!p) {
+                        chartWrap.classList.remove("visible");
+                        return;
+                    }
+
+                    chartWrap.classList.add("visible");
+                    if (chartInst) chartInst.destroy();
+
+                    chartInst = new Chart(
+                        document.getElementById("histCanvas"),
+                        {
+                            type: "bar",
+                            data: { labels: p.labels, datasets: p.datasets },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: true,
+                                aspectRatio: 2.2,
+                                interaction: {
+                                    mode: "index",
+                                    intersect: false,
+                                },
+                                plugins: {
+                                    legend: {
+                                        labels: {
+                                            color: "#e2e4eb",
+                                            font: {
+                                                family: "DM Mono",
+                                                size: 12,
+                                            },
+                                        },
+                                    },
+                                    tooltip: {
+                                        backgroundColor: "#1a1d27",
+                                        titleColor: "#e2e4eb",
+                                        bodyColor: "#7a7f95",
+                                        borderColor: "#2e3347",
+                                        borderWidth: 1,
+                                        titleFont: { family: "DM Mono" },
+                                        bodyFont: { family: "DM Mono" },
+                                    },
+                                },
+                                scales: {
+                                    x: {
+                                        ticks: {
+                                            color: "#7a7f95",
+                                            font: {
+                                                family: "DM Mono",
+                                                size: 10,
+                                            },
+                                            maxRotation: 45,
+                                            autoSkip: true,
+                                            maxTicksLimit: 16,
+                                        },
+                                        grid: { color: "rgba(46,51,71,0.6)" },
+                                        title: {
+                                            display: true,
+                                            text: "Value",
+                                            color: "#7a7f95",
+                                            font: {
+                                                family: "DM Mono",
+                                                size: 12,
+                                            },
+                                        },
+                                    },
+                                    y: {
+                                        ticks: {
+                                            color: "#7a7f95",
+                                            font: {
+                                                family: "DM Mono",
+                                                size: 11,
+                                            },
+                                        },
+                                        grid: { color: "rgba(46,51,71,0.6)" },
+                                        title: {
+                                            display: true,
+                                            text: "Count",
+                                            color: "#7a7f95",
+                                            font: {
+                                                family: "DM Mono",
+                                                size: 12,
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    );
+                }
+
+                /* ── post-parse UI wiring ──────────────────────────────────── */
+                function onParsed() {
+                    // Include one extra slot for "Overall Mark"
+                    activeCols = colNames.map(() => true);
+                    activeCols.push(false); // Overall Mark starts inactive
+
+                    colPills.innerHTML = "";
+
+                    // Add individual column pills
+                    colNames.forEach((name, i) => {
+                        const pill = document.createElement("button");
+                        pill.className = "col-pill active";
+                        pill.textContent = name;
+                        pill.addEventListener("click", () => {
+                            activeCols[i] = !activeCols[i];
+                            pill.classList.toggle("active");
+                            renderChart();
+                        });
+                        colPills.appendChild(pill);
+                    });
+
+                    // Add "Overall Mark" pill
+                    const overallPill = document.createElement("button");
+                    overallPill.className = "col-pill";
+                    overallPill.textContent = "Overall Mark";
+                    overallPill.addEventListener("click", () => {
+                        activeCols[colNames.length] =
+                            !activeCols[colNames.length];
+                        overallPill.classList.toggle("active");
+                        renderChart();
+                    });
+                    colPills.appendChild(overallPill);
+
+                    colWrap.classList.add("visible");
+
+                    // Show bin mode toggle
+                    binModeWrap.classList.add("visible");
+                    updateToggleLabels();
+
+                    const flat = rows.flat();
+                    document.getElementById("statRows").textContent =
+                        rows.length;
+                    document.getElementById("statCols").textContent =
+                        colNames.length;
+                    document.getElementById("statMin").textContent = Math.min(
+                        ...flat,
+                    );
+                    document.getElementById("statMax").textContent = Math.max(
+                        ...flat,
+                    );
+                    document.getElementById("statMean").textContent = (
+                        flat.reduce((a, b) => a + b, 0) / flat.length
+                    ).toFixed(2);
+                    statsRow.classList.add("visible");
+
+                    renderChart();
+                }
+
+                /* ── update toggle label styling ───────────────────────────── */
+                function updateToggleLabels() {
+                    if (fixedBinMode) {
+                        labelAuto.classList.remove("active");
+                        labelFixed.classList.add("active");
+                        binToggle.classList.add("on");
+                    } else {
+                        labelAuto.classList.add("active");
+                        labelFixed.classList.remove("active");
+                        binToggle.classList.remove("on");
+                    }
+                }
+
+                /* ── file entry point ──────────────────────────────────────── */
+                function handleFile(file) {
+                    if (!file.name.toLowerCase().endsWith(".csv")) {
+                        setStatus("Please drop a .csv file", "err");
+                        return;
+                    }
+                    setStatus("Reading …");
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const result = parseCSV(e.target.result);
+                            colNames = result.colNames;
+                            rows = result.rows;
+                            weights = result.weights;
+
+                            if (!rows.length) {
+                                setStatus(
+                                    "No data rows found after the 13-line header.",
+                                    "err",
+                                );
+                                return;
+                            }
+
+                            setStatus(
+                                `Loaded ${rows.length} rows × ${colNames.length} columns successfully`,
+                                "ok",
+                            );
+                            onParsed();
+                        } catch (err) {
+                            setStatus("Parse error: " + err.message, "err");
+                        }
+                    };
+                    reader.onerror = () =>
+                        setStatus("Failed to read file.", "err");
+                    reader.readAsText(file);
+                }
+
+                /* ── bin mode toggle handler ───────────────────────────────── */
+                binToggle.addEventListener("click", () => {
+                    fixedBinMode = !fixedBinMode;
+                    updateToggleLabels();
+                    renderChart();
+                });
+
+                /* ── drag & drop + click ───────────────────────────────────── */
+                ["dragenter", "dragover", "dragleave", "drop"].forEach((ev) =>
+                    dropZone.addEventListener(ev, (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }),
+                );
+                dropZone.addEventListener("dragover", () =>
+                    dropZone.classList.add("dragover"),
+                );
+                dropZone.addEventListener("dragleave", () =>
+                    dropZone.classList.remove("dragover"),
+                );
+                dropZone.addEventListener("drop", (e) => {
+                    dropZone.classList.remove("dragover");
+                    if (e.dataTransfer.files[0])
+                        handleFile(e.dataTransfer.files[0]);
+                });
+                fileInput.addEventListener("change", (e) => {
+                    if (e.target.files[0]) handleFile(e.target.files[0]);
+                });
+            })();
+        </script>
+    </body>
+</html>
